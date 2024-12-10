@@ -23,8 +23,6 @@ exploring_header = "Exploring data"
 
 df = pd.read_csv('./data.csv')
 
-df
-
 print('Common discription of data frame')
 print()
 print('Columns')
@@ -55,7 +53,7 @@ fixing_head = "Rationalizing and cleaning data"
 print(fixing_head)
 
 # Removing columns
-df = df.drop(['Net Income Flag', 'Liability-Assets Flag'], axis=1)
+#df = df.drop(['Net Income Flag', 'Liability-Assets Flag'], axis=1)
 
 # +
 # Adding exclusions

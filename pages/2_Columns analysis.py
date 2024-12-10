@@ -19,7 +19,7 @@ selected_column = st.sidebar.selectbox(
 
 
 if selected_column == 'Select a column...':
-    st.subheader("Choose an indicator and let's get started!")
+    st.subheader("Choose a column and let's get started!")
 
 else:
     col_analyse(selected_column)

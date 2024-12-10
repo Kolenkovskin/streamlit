@@ -9,7 +9,7 @@ import plotly.express as px
 
 df = pd.read_csv('./data.csv')
 df.columns = df.columns.str.strip()
-df = df.drop(['Net Income Flag', 'Liability-Assets Flag'], axis=1)
+
 
 
 def col_analyse(col):
@@ -20,43 +20,70 @@ def col_analyse(col):
     from scipy.stats import zscore, levene, ttest_ind, mannwhitneyu
     import matplotlib.pyplot as plt
     import seaborn as sns
+    from For_streamlit import df, numeric_df
 
-    # Блок 1: Вычисление основных характеристик
-    # Фильтрация данных по условию
-    st.subheader(f'The {col}.')
-    st.write(f'Here you can estimate a column {col} separately!')
-    st.dataframe(df[col])
 
-    data_sum = df[col].sum()
 
-    if data_sum >= 10000:
-        col_data = df[df[col] > 1][col]  # Фильтруем строки, где значения > 1
-        st.subheader('Main statistical view.')
-        st.write(f"The column below provides quantitative data of {col} that describes a specific financial metric with main indicators shown.")
-        st.write(col_data.describe())
-        st.write()
-    elif (df[col] == 1).any() or (df[col] == 0).any():
-        col_data = df[col][(df[col] > 0) & (df[col] < 1)]
-        st.subheader('Main statistical view.')
-        st.write(f"The column below provides quantitative data of {col} that describes a specific financial metric with main indicators shown.")
-        st.write(col_data.describe())
-        st.write()
+    df = df.drop(['Net Income Flag', 'Liability-Assets Flag'], axis=1)
+    data = df[col]
+    data_duplicates_sum = sum(data.duplicated())
+    data_duplicates = data[data.duplicated(keep=False)]
+    most_common_duplicates = data_duplicates.sort_values(ascending=True)
+    column_duplicates_stats = data_duplicates.describe()
+    st.subheader(f'The {col} column.')
+    st.write(data)
+    st.subheader('Main statistical view.')
+
+
+    if df[col].sum() >= 10000:
+        filtered_col = df[col][(df[col] > 1)]#.astype(int)  # Фильтруем строки, где значения > 1
+    elif df[col].any() == 1 or df[col].any() == 0:
+        filtered_col = df[col][(df[col] > 0) & (df[col] < 1)]
     else:
-        col_data = df[col]  # Без фильтрации
-        st.subheader('Main statistical view.')
-        st.write(f"The column below provides quantitative data of {col} that describes a specific financial metric.")
-        st.write(col_data.describe())
-        st.write()
+        filtered_col = df[col]  # Без фильтрации
 
+    filtered_col = filtered_col.drop_duplicates()
+
+    filtered_col_disc_table = filtered_col.describe()
+
+    st.write(filtered_col_disc_table)
+
+    st.markdown("""
+    ### Statistical Summary Table
+
+    The table provides a detailed statistical overview of the selected column. Here's what you can interpret from it:
+
+    1. **Count**: 
+       - The number of valid data points available in the column after any cleaning or filtering operations.
+
+    2. **Mean**:
+       - The average value of the data in the column, representing the central tendency.
+
+    3. **Standard Deviation (std)**:
+       - Measures the amount of variation or dispersion in the data. A high standard deviation indicates greater variability.
+
+    4. **Minimum (min)**:
+       - The smallest value observed in the column.
+
+    5. **Percentiles (25%, 50%, 75%)**:
+       - These represent the distribution of the data:
+         - **25% (Q1)**: The value below which 25% of the data falls (lower quartile).
+         - **50% (Median)**: The middle value of the data when sorted.
+         - **75% (Q3)**: The value below which 75% of the data falls (upper quartile).
+
+    6. **Maximum (max)**:
+       - The largest value observed in the column.
+
+    This table offers a quick and effective way to understand the key properties and trends within the data, helping to identify patterns, outliers, and the overall distribution of the column.
+    """)
 
     # Вычисление выбросов
-    Q1 = np.percentile(col_data, 25)
-    Q3 = np.percentile(col_data, 75)
+    Q1 = np.percentile(filtered_col, 25)
+    Q3 = np.percentile(filtered_col, 75)
     IQR = Q3 - Q1
     lower_bound = Q1 - 1.5 * IQR
     upper_bound = Q3 + 1.5 * IQR
-    col_data = col_data.dropna()
-    outliers = col_data[(col_data < lower_bound) | (col_data > upper_bound)]
+    outliers = filtered_col[(filtered_col < lower_bound) | (filtered_col > upper_bound)]
 
     if len(outliers) > 0:
         st.markdown(f'### The {col} column has {len(outliers)} of interquartile outliers.')
@@ -88,7 +115,7 @@ def col_analyse(col):
                          Any points outside this range are considered outliers, offering insights into potential anomalies in the data.
                          """)
         fig, ax = plt.subplots(figsize=(10, 6))
-        sns.boxplot(x=col_data, ax=ax, color="skyblue")
+        sns.boxplot(x=filtered_col, ax=ax, color="skyblue")
         ax.set_title(f'Enhanced Boxplot of {col}', fontsize=14, fontweight='bold')
         ax.set_xlabel(f'{col}', fontsize=12)
         ax.set_ylabel('Value Distribution', fontsize=12)
@@ -97,8 +124,8 @@ def col_analyse(col):
         st.write()
 
     # Вычисление Z-выбросов
-    z_scores = zscore(col_data)
-    z_outliers = col_data[np.abs(z_scores) > 3]
+    z_scores = zscore(filtered_col)
+    z_outliers = filtered_col[np.abs(z_scores) > 3]
     if len(z_outliers) > 0:
         st.markdown(f'### Also the {col} column has {len(z_outliers)} of Z-score outliers.')
         st.write()
@@ -132,14 +159,14 @@ def col_analyse(col):
         fig, ax = plt.subplots(figsize=(12, 6))  # Увеличенный размер для лучшей визуализации
 
         # Отображение точек Z-оценок
-        ax.scatter(range(len(col_data)), z_scores, alpha=0.7, label="Z-scores", color="blue")
+        ax.scatter(range(len(filtered_col)), z_scores, alpha=0.7, label="Z-scores", color="blue")
 
         # Горизонтальные линии порогов
         ax.axhline(y=3, color="red", linestyle="--", linewidth=2, label="Upper Threshold (+3)")
         ax.axhline(y=-3, color="green", linestyle="--", linewidth=2, label="Lower Threshold (-3)")
 
         # Установление границ осей
-        ax.set_xlim(0, len(col_data))  # Ось X охватывает весь диапазон данных
+        ax.set_xlim(0, len(filtered_col))  # Ось X охватывает весь диапазон данных
         ax.set_ylim(-5, 5)  # Ось Y охватывает значения от -5 до 5 для лучшего контекста
 
         # Подписи для выбросов
@@ -203,35 +230,37 @@ def col_analyse(col):
             This bar chart highlights the variables that have a strong linear relationship with the selected column **{col}**.
             Understanding these correlations is key to feature selection and avoiding redundancy in modeling.
             """)
-        # Improved bar chart for high correlations
-        fig, ax = plt.subplots(figsize=(10, 7))  # Increased figure size for better readability
+        fig, ax = plt.subplots(figsize=(10, 7))  # Увеличенный размер графика для читаемости
 
-        # Plot sorted high correlations as a horizontal bar chart for better variable comparison
+        # Построение горизонтального бар-чарта
         high_correlations.sort_values().plot(
             kind='barh',
             ax=ax,
             color='skyblue',
-            edgecolor='black',  # Add border to bars for clarity
-            alpha=0.8  # Slightly transparent bars
+            edgecolor='black',  # Подчеркнем границы
+            alpha=0.8  # Прозрачность для мягкого вида
         )
 
-        # Add titles and labels with adjusted font sizes and weights
-        ax.set_title(f"High Correlations with {col}", fontsize=16, fontweight='bold', pad=15)
+        # Установим пределы оси X
+        ax.set_xlim(0, 1.1)
+
+        # Добавим заголовки и подписи
+        ax.set_title(f"High Correlations with {col}", fontsize=16, fontweight='bold', pad=20)
         ax.set_xlabel("Correlation Coefficient", fontsize=14, fontweight='medium', labelpad=10)
         ax.set_ylabel("Variables", fontsize=14, fontweight='medium', labelpad=10)
 
-        # Enable grid for easier value interpretation
+        # Включим сетку для лучшей интерпретации
         ax.grid(axis='x', linestyle='--', linewidth=0.7, alpha=0.7, color='gray')
 
-        # Adjust tick parameters for better readability
+        # Настроим параметры меток
         ax.tick_params(axis='x', labelsize=12)
         ax.tick_params(axis='y', labelsize=12)
 
-        # Add values next to the bars
+        # Добавим значения рядом с барами
         for i, v in enumerate(high_correlations.sort_values()):
-            ax.text(v + 0.02, i, f"{v:.2f}", va='center', fontsize=12, color='black')
+            ax.text(v + 0.02, i, f'{v:.2f}', va='center', fontsize=12, color='black')
 
-        # Display the chart
+        # Отобразим график
         st.pyplot(fig)
 
         # Add a note below the chart for explanation
@@ -293,7 +322,7 @@ def col_analyse(col):
         """)
     fig, ax = plt.subplots(figsize=(10, 6))  # Увеличен размер графика
     ax.hist(
-        col_data,
+        filtered_col,
         bins=30,  # Количество бинов для более детализированного распределения
         alpha=0.75,  # Умеренная прозрачность для лучшей видимости
         color='skyblue',  # Приятный цвет для гистограммы
@@ -302,8 +331,8 @@ def col_analyse(col):
     )
 
     # Добавление линий среднего и медианы для анализа распределения
-    mean_value = col_data.mean()
-    median_value = col_data.median()
+    mean_value = filtered_col.mean()
+    median_value = filtered_col.median()
     ax.axvline(mean_value, color='red', linestyle='--', linewidth=1.5, label=f'Mean: {mean_value:.2f}')
     ax.axvline(median_value, color='green', linestyle='-', linewidth=1.5, label=f'Median: {median_value:.2f}')
 
